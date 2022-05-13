@@ -18,20 +18,26 @@ class AccountPaymentInherit(models.Model):
 	tax_type = fields.Many2one(
 		comodel_name='account.tax',
 		string='Tax Type',
-		required=False)
+		required=False
+	)
 
 	is_withholding_amount = fields.Float(string='Is withholding Amount', store=True)
+	tax_type_check = fields.Char('Tax categ', compute="get_tax_type_check")
 
-
+	@api.depends('journal_id')
+	def get_tax_type_check(self):
+		if self.payment_type == 'inbound':
+			self.tax_type_check = 'sale'
+		if self.payment_type == 'outbound':
+			self.tax_type_check = 'purchase'
 
 	@api.onchange('tax_type', 'amount')
 	def onchange_tax_type(self):
 		for rec in self:
 			if rec.tax_type.is_withholding:
-				if rec.is_withholding_amount:
-					rec.is_withholding_amount = (rec.tax_type.amount / 100 * self.amount)
-				else:
-					pass
+				rec.is_withholding_amount = (rec.tax_type.amount / 100 * self.amount)
+			else:
+				rec.is_withholding_amount = 0.0
 
 	def _prepare_move_line_default_vals(self, write_off_line_vals=None):
 		''' Prepare the dictionary to create the default account.move.lines for the current payment.
@@ -43,7 +49,6 @@ class AccountPaymentInherit(models.Model):
 		        '''
 		self.ensure_one()
 		for rec in self:
-
 
 			if rec.tax_type.is_withholding:
 				write_off_line_vals = write_off_line_vals or {}
@@ -109,7 +114,6 @@ class AccountPaymentInherit(models.Model):
 					self.date,
 					partner=self.partner_id,
 				)
-
 
 				line_vals_list = [
 					# Liquidity line.
@@ -275,9 +279,18 @@ class AccountPaymentRegisterInherit(models.TransientModel):
 	tax_types = fields.Many2one(
 		comodel_name='account.tax',
 		string='Tax Type',
-		required=False)
+		required=False, )
 
 	is_withholding_amounts = fields.Float(string='Is withholding Amount', readonly=True, store=True)
+	tax_type_checks = fields.Char('Tax categ', compute="get_tax_type_checks")
+
+	@api.depends('journal_id')
+	def get_tax_type_checks(self):
+		if self.payment_type == 'inbound':
+			self.tax_type_checks = 'sale'
+		if self.payment_type == 'outbound':
+			self.tax_type_checks = 'purchase'
+
 
 	@api.onchange('tax_types', 'amount')
 	def onchange_tax_types(self):
@@ -286,7 +299,6 @@ class AccountPaymentRegisterInherit(models.TransientModel):
 				rec.is_withholding_amounts = (rec.tax_types.amount / 100 * self.amount)
 			else:
 				rec.is_withholding_amounts = 0.0
-
 
 	def _create_payment_vals_from_wizard(self):
 		for rec in self:
